@@ -23,6 +23,18 @@ const assistantController = {
     }
   },
 
+  listAssistants: async (_req: Request, res: Response) => {
+    try {
+      const assistants = await openai.beta.assistants.list({
+        limit: 10,
+        order: 'desc',
+      });
+      res.json(assistants.data);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  },
+
   createThread: async (_req: Request, res: Response) => {
     try {
       const thread = await openai.beta.threads.create();
@@ -58,6 +70,16 @@ const assistantController = {
       // Get messages
       const messages = await openai.beta.threads.messages.list(threadId);
       
+      res.json(messages.data);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  },
+
+  getMessages: async (req: Request, res: Response) => {
+    try {
+      const { threadId } = req.params;
+      const messages = await openai.beta.threads.messages.list(threadId);
       res.json(messages.data);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
