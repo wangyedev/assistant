@@ -44,9 +44,18 @@ const assistantController = {
     }
   },
 
-  sendMessage: async (req: Request<{}, {}, MessageRequest>, res: Response) => {
+  sendMessage: async (req: Request, res: Response) => {
     try {
-      const { threadId, message } = req.body;
+      const { threadId, message, assistantId } = req.query as { 
+        threadId: string; 
+        message: string; 
+        assistantId: string 
+      };
+
+      // Set headers for streaming
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
 
       // Add message to thread
       await openai.beta.threads.messages.create(threadId, {
@@ -54,32 +63,45 @@ const assistantController = {
         content: message
       });
 
-      // Run the assistant
-      const run = await openai.beta.threads.runs.create(threadId, {
-        assistant_id: req.body.assistantId
-      });
+      // Run the assistant with streaming
+      const run = openai.beta.threads.runs.stream(threadId, {
+        assistant_id: assistantId
+      })
+        .on('textCreated', () => {
+          res.write('event: textCreated\ndata: assistant started typing\n\n');
+        })
+        .on('textDelta', (textDelta, snapshot) => {
+          res.write(`event: textDelta\ndata: ${JSON.stringify({ delta: textDelta.value, snapshot })}\n\n`);
+        })
+        .on('toolCallCreated', (toolCall) => {
+          res.write(`event: toolCallCreated\ndata: ${JSON.stringify(toolCall)}\n\n`);
+        })
+        .on('toolCallDelta', (toolCallDelta, snapshot) => {
+          res.write(`event: toolCallDelta\ndata: ${JSON.stringify({ delta: toolCallDelta, snapshot })}\n\n`);
+        })
+        .on('end', async () => {
+          // Get final messages after stream ends
+          const messages = await openai.beta.threads.messages.list(threadId);
+          res.write(`event: end\ndata: ${JSON.stringify(messages.data)}\n\n`);
+          res.end();
+        })
+        .on('error', (error) => {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+          res.end();
+        });
 
-      // Wait for the run to complete
-      let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-      
-      while (runStatus.status !== 'completed') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-      }
-
-      // Get messages
-      const messages = await openai.beta.threads.messages.list(threadId);
-      
-      res.json(messages.data);
     } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
+      res.write(`event: error\ndata: ${JSON.stringify({ error: (error as Error).message })}\n\n`);
+      res.end();
     }
   },
 
   getMessages: async (req: Request, res: Response) => {
     try {
       const { threadId } = req.params;
-      const messages = await openai.beta.threads.messages.list(threadId);
+      const messages = await openai.beta.threads.messages.list(threadId, {
+        order: "asc",
+      });
       res.json(messages.data);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
