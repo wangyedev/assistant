@@ -43,13 +43,21 @@ router.post('/chat', async (req, res) => {
         const match = functionResponse.match(/(\d+)°([CF])/);
         if (!match) throw new Error("Invalid weather response format");
         const [_, temp, unit] = match;
+        
+        // Extract additional info from function response
+        const feelsLikeMatch = functionResponse.match(/Feels like (\d+)°/);
+        const humidityMatch = functionResponse.match(/(\d+)% humidity/);
+        const descriptionMatch = functionResponse.match(/\. ([^.]+)\. Feels/);
+
         display = {
           type: "weather",
           data: {
             location: functionArgs.location,
             temperature: parseInt(temp),
             unit: unit === "C" ? "celsius" : "fahrenheit",
-            description: functionResponse
+            description: descriptionMatch ? descriptionMatch[1].toLowerCase() : "",
+            feelsLike: feelsLikeMatch ? parseInt(feelsLikeMatch[1]) : undefined,
+            humidity: humidityMatch ? parseInt(humidityMatch[1]) : undefined,
           }
         };
       } else if (functionName === "getCurrentTime") {

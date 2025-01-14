@@ -19,6 +19,7 @@ interface Config {
     secret: string;
     expiresIn: string;
   };
+  openWeatherApiKey: string;
 }
 
 export const config: Config = {
@@ -36,4 +37,5 @@ export const config: Config = {
     secret: process.env.JWT_SECRET || 'your-default-secret',
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
+  openWeatherApiKey: process.env.OPENWEATHER_API_KEY || '',
 }; 
