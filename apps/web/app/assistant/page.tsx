@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Message } from "@/components/message";
 import { Card } from "@/components/ui/card";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 
 interface Message {
   role: "user" | "assistant" | "function";
@@ -15,10 +16,16 @@ interface Message {
   };
 }
 
+type LoadingState =
+  | "thinking"
+  | "calling_function"
+  | "processing_response"
+  | null;
+
 export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingState, setLoadingState] = useState<LoadingState>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +34,7 @@ export default function AssistantPage() {
     const userMessage = { role: "user" as const, content: input };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setIsLoading(true);
+    setLoadingState("thinking");
 
     try {
       const response = await fetch("http://localhost:3001/api/assistant/chat", {
@@ -36,7 +43,16 @@ export default function AssistantPage() {
         body: JSON.stringify({ message: input }),
       });
 
+      if (!response.ok) throw new Error("Failed to get response");
+
+      // Check headers before reading the body
+      if (response.headers.get("X-Function-Call")) {
+        setLoadingState("calling_function");
+      }
+
       const data = await response.json();
+      setLoadingState("processing_response");
+
       setMessages((prev) => [
         ...prev,
         {
@@ -46,9 +62,16 @@ export default function AssistantPage() {
         },
       ]);
     } catch (error) {
-      console.error("Error:", error);
+      console.log("Error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error processing your request.",
+        },
+      ]);
     } finally {
-      setIsLoading(false);
+      setLoadingState(null);
     }
   };
 
@@ -59,6 +82,20 @@ export default function AssistantPage() {
           {messages.map((message, i) => (
             <Message key={i} {...message} />
           ))}
+
+          {loadingState && (
+            <div className="px-4 py-2">
+              {loadingState === "thinking" && (
+                <LoadingIndicator message="AI is thinking..." />
+              )}
+              {loadingState === "calling_function" && (
+                <LoadingIndicator message="Fetching data from external service..." />
+              )}
+              {loadingState === "processing_response" && (
+                <LoadingIndicator message="Processing response..." />
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border-t p-4">
@@ -69,10 +106,10 @@ export default function AssistantPage() {
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Ask about weather or time in any location..."
-              disabled={isLoading}
+              disabled={loadingState !== null}
             />
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Sending..." : "Send"}
+            <Button type="submit" disabled={loadingState !== null}>
+              {loadingState ? "Processing..." : "Send"}
             </Button>
           </form>
         </div>

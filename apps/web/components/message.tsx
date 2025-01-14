@@ -37,12 +37,7 @@ export function Message({ role, content, name, display }: MessageProps) {
           </>
         )}
 
-        <Card
-          className={cn("px-4 py-3", {
-            "bg-primary text-primary-foreground": role === "user",
-            "bg-muted": role === "function",
-          })}
-        >
+        <Card className={cn("px-4 py-3")}>
           {name && (
             <div className="text-xs text-muted-foreground mb-2">
               Function: {name}

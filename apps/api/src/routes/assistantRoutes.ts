@@ -10,6 +10,9 @@ router.post('/chat', async (req, res) => {
   try {
     const { message } = req.body
 
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'application/json');
+    
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo-0125",
       messages: [
@@ -29,6 +32,9 @@ router.post('/chat', async (req, res) => {
     const responseMessage = completion.choices[0].message
 
     if (responseMessage.tool_calls) {
+      // Signal that we're making a function call
+      res.setHeader('X-Function-Call', 'true');
+      
       const functionCall = responseMessage.tool_calls[0]
       const functionName = functionCall.function.name
       const functionArgs = JSON.parse(functionCall.function.arguments)
@@ -37,45 +43,43 @@ router.post('/chat', async (req, res) => {
         functionArgs
       )
 
-      // Parse function response to create appropriate display object
-      let display
-      if (functionName === "getCurrentWeather") {
-        const match = functionResponse.match(/(\d+)°([CF])/);
-        if (!match) throw new Error("Invalid weather response format");
-        const [_, temp, unit] = match;
-        
-        // Extract additional info from function response
-        const feelsLikeMatch = functionResponse.match(/Feels like (\d+)°/);
-        const humidityMatch = functionResponse.match(/(\d+)% humidity/);
-        const descriptionMatch = functionResponse.match(/\. ([^.]+)\. Feels/);
-
-        display = {
-          type: "weather",
-          data: {
-            location: functionArgs.location,
-            temperature: parseInt(temp),
-            unit: unit === "C" ? "celsius" : "fahrenheit",
-            description: descriptionMatch ? descriptionMatch[1].toLowerCase() : "",
-            feelsLike: feelsLikeMatch ? parseInt(feelsLikeMatch[1]) : undefined,
-            humidity: humidityMatch ? parseInt(humidityMatch[1]) : undefined,
+      // Use LLM to parse the function response
+      const parseResponse = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo-0125",
+        messages: [
+          {
+            role: "system",
+            content: `Parse the following weather/time information and return a JSON object.
+            For weather responses, include: location, temperature (number), unit (celsius/fahrenheit), description, feelsLike (number), humidity (number).
+            For time responses, include: timezone, time, date.
+            Return only the JSON object, no other text.`
+          },
+          {
+            role: "user",
+            content: functionResponse
           }
-        };
-      } else if (functionName === "getCurrentTime") {
-        const time = new Date();
-        display = {
-          type: "time",
-          data: {
-            timezone: functionArgs.timezone,
-            time: time.toLocaleTimeString("en-US", { timeZone: functionArgs.timezone }),
-            date: time.toLocaleDateString("en-US", { timeZone: functionArgs.timezone })
-          }
-        };
-      }
-
-      res.json({ 
-        message: functionResponse,
-        display 
+        ],
+        response_format: { type: "json_object" }
       });
+
+      try {
+        const parsedData = JSON.parse(parseResponse.choices[0].message.content || '{}');
+        const display = {
+          type: functionName === "getCurrentWeather" ? "weather" : "time",
+          data: parsedData
+        };
+
+        res.json({ 
+          message: functionResponse,
+          display 
+        });
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        res.json({ 
+          message: functionResponse,
+          display: null 
+        });
+      }
     } else {
       res.json({ 
         message: responseMessage.content,
