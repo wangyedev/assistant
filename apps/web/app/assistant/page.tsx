@@ -44,25 +44,97 @@ export default function AssistantPage() {
       });
 
       if (!response.ok) throw new Error("Failed to get response");
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      // Check headers before reading the body
-      if (response.headers.get("X-Function-Call")) {
-        setLoadingState("calling_function");
+      // Create a new message that we'll update as we receive chunks
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: "",
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            try {
+              const [eventLine, dataLine] = line.split("\n");
+              if (
+                !eventLine?.startsWith("event: ") ||
+                !dataLine?.startsWith("data: ")
+              ) {
+                continue;
+              }
+
+              const event = eventLine.slice(7); // Remove "event: "
+              const data = JSON.parse(dataLine.slice(5)); // Remove "data: "
+
+              switch (event) {
+                case "thinking":
+                  setLoadingState("thinking");
+                  break;
+                case "function_call":
+                  setLoadingState("calling_function");
+                  break;
+                case "function_executing":
+                  setLoadingState("processing_response");
+                  break;
+                case "function_result":
+                  setMessages((prev) => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (!lastMessage) return prev;
+                    return [
+                      ...prev.slice(0, -1),
+                      {
+                        ...lastMessage,
+                        content: data.message,
+                        display: data.display,
+                      },
+                    ];
+                  });
+                  break;
+                case "content":
+                  setMessages((prev) => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (!lastMessage) return prev;
+                    return [
+                      ...prev.slice(0, -1),
+                      {
+                        ...lastMessage,
+                        content: (lastMessage.content || "") + data.content,
+                      },
+                    ];
+                  });
+                  break;
+                case "error":
+                  throw new Error(data.message);
+                case "done":
+                  return; // Clean exit when done
+              }
+            } catch (parseError) {
+              console.error("Error parsing event:", parseError);
+              // Continue processing other events instead of failing
+              continue;
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock(); // Ensure we release the reader
       }
-
-      const data = await response.json();
-      setLoadingState("processing_response");
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.message,
-          display: data.display,
-        },
-      ]);
     } catch (error) {
-      console.log("Error:", error);
+      console.error("Error:", error);
       setMessages((prev) => [
         ...prev,
         {

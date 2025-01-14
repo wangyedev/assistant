@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { config } from '../config';
+import axios from "axios";
+import { config } from "../config";
 
 export type FunctionDefinition = {
   name: string;
@@ -103,4 +103,4 @@ export const functions = {
 export const availableFunctions: FunctionDefinition[] = [
   getCurrentWeather,
   getCurrentTime,
-]; 
+];
