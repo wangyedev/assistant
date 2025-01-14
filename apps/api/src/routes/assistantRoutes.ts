@@ -12,14 +12,22 @@ router.post('/chat', async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo-0125",
-      messages: [{ role: "user", content: message }],
+      messages: [
+        {
+          role: "system",
+          content: `You are a helpful assistant that provides information with specialized UI components when appropriate.
+          For weather information, return a JSON response with type: "weather" and include location, temperature, unit, and description.
+          For time information, return a JSON response with type: "time" and include timezone, time, and date.
+          For other responses, provide clear markdown-formatted text.`
+        },
+        { role: "user", content: message }
+      ],
       tools: availableFunctions.map(fn => ({ type: "function", function: fn })),
       tool_choice: "auto",
     })
 
     const responseMessage = completion.choices[0].message
 
-    // Check if the model wants to call a function
     if (responseMessage.tool_calls) {
       const functionCall = responseMessage.tool_calls[0]
       const functionName = functionCall.function.name
@@ -29,22 +37,42 @@ router.post('/chat', async (req, res) => {
         functionArgs
       )
 
-      const secondResponse = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo-0125",
-        messages: [
-          { role: "user", content: message },
-          responseMessage,
-          {
-            role: "tool",
-            content: functionResponse,
-            tool_call_id: functionCall.id
-          },
-        ],
-      })
+      // Parse function response to create appropriate display object
+      let display
+      if (functionName === "getCurrentWeather") {
+        const match = functionResponse.match(/(\d+)°([CF])/);
+        if (!match) throw new Error("Invalid weather response format");
+        const [_, temp, unit] = match;
+        display = {
+          type: "weather",
+          data: {
+            location: functionArgs.location,
+            temperature: parseInt(temp),
+            unit: unit === "C" ? "celsius" : "fahrenheit",
+            description: functionResponse
+          }
+        };
+      } else if (functionName === "getCurrentTime") {
+        const time = new Date();
+        display = {
+          type: "time",
+          data: {
+            timezone: functionArgs.timezone,
+            time: time.toLocaleTimeString("en-US", { timeZone: functionArgs.timezone }),
+            date: time.toLocaleDateString("en-US", { timeZone: functionArgs.timezone })
+          }
+        };
+      }
 
-      res.json({ message: secondResponse.choices[0].message.content })
+      res.json({ 
+        message: functionResponse,
+        display 
+      });
     } else {
-      res.json({ message: responseMessage.content })
+      res.json({ 
+        message: responseMessage.content,
+        display: null
+      });
     }
   } catch (error) {
     console.error('Error:', error)

@@ -9,6 +9,10 @@ interface Message {
   role: "user" | "assistant" | "function";
   content: string;
   name?: string;
+  display?: {
+    type: "weather" | "time";
+    data: any;
+  };
 }
 
 export default function AssistantPage() {
@@ -35,7 +39,11 @@ export default function AssistantPage() {
       const data = await response.json();
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.message },
+        {
+          role: "assistant",
+          content: data.message,
+          display: data.display,
+        },
       ]);
     } catch (error) {
       console.error("Error:", error);
