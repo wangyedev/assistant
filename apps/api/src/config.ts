@@ -20,6 +20,13 @@ interface Config {
     expiresIn: string;
   };
   openWeatherApiKey: string;
+  mongodb: {
+    uri: string;
+    options: {
+      maxPoolSize: number;
+      serverSelectionTimeoutMS: number;
+    };
+  };
 }
 
 export const config: Config = {
@@ -38,4 +45,11 @@ export const config: Config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "24h",
   },
   openWeatherApiKey: process.env.OPENWEATHER_API_KEY || "",
+  mongodb: {
+    uri: process.env.MONGODB_URI || "mongodb://localhost:27017/assistant",
+    options: {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+    },
+  },
 };

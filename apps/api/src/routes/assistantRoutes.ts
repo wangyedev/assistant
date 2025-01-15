@@ -2,6 +2,7 @@ import express from "express";
 import OpenAI from "openai";
 import { config } from "../config";
 import { availableFunctions, functions } from "../functions";
+import { ChatService } from "../services/chatService";
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: config.openAiApiKey });
@@ -21,46 +22,34 @@ router.post("/chat", async (req, res) => {
   };
 
   try {
-    const { message }: { message: string } = req.body;
+    const { message, userId, chatId } = req.body;
 
     // Set headers for SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    // Get recent chat context
+    const recentMessages = await ChatService.getRecentContext(userId);
+
     // Start thinking
     sendEvent("thinking", { content: "Analyzing your request..." });
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    let currentToolCall: Partial<ToolCall> = {};
-    let hasExecutedFunction = false;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo-0125",
+      model: "gpt-4-turbo-preview",
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant specializing in compliance information and general queries.
-
-            For compliance queries:
-            - Use the searchCompliance function to find relevant standards
-            - Consider industry-specific requirements
-            - Match regional regulations
-            - Provide clear, structured responses
-
-            For weather and time queries:
-            - Use getCurrentWeather for weather information
-            - Use getCurrentTime for timezone information
-            - Return responses in the appropriate format
-
-            Format all responses in clear markdown with:
-            - Bullet points for key information
-            - Headers for different sections
-            - Brief summaries followed by details
-            - Relevant links when available`,
+          content: `You are a helpful assistant specializing in compliance information and general queries...`,
         },
+        // Include recent context
+        ...recentMessages.map((msg) => ({
+          role: msg.role as "assistant" | "user" | "system" | "function",
+          content: msg.content,
+          ...(msg.name && { name: msg.name }),
+        })),
         { role: "user", content: message },
-      ],
+      ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
       tools: [
         ...availableFunctions.map((fn) => ({
           type: "function" as const,
@@ -71,9 +60,22 @@ router.post("/chat", async (req, res) => {
       stream: true,
     });
 
+    // Save user message
+    await ChatService.addMessage(chatId, {
+      role: "user",
+      content: message,
+    });
+
+    let currentToolCall: Partial<ToolCall> = {};
+    let hasExecutedFunction = false;
+    let responseMessage = "";
+    let display: any;
+
     for await (const chunk of completion) {
       if (chunk.choices[0]?.delta?.content) {
-        sendEvent("content", { content: chunk.choices[0].delta.content });
+        const content = chunk.choices[0].delta.content;
+        responseMessage += content;
+        sendEvent("content", { content });
       }
 
       const toolCall = chunk.choices[0]?.delta?.tool_calls?.[0];
@@ -170,17 +172,19 @@ router.post("/chat", async (req, res) => {
               const parsedData = JSON.parse(
                 parseResponse.choices[0].message.content || "{}"
               );
+              const displayData = {
+                type:
+                  functionName === "getCurrentWeather"
+                    ? "weather"
+                    : functionName === "getCurrentTime"
+                      ? "time"
+                      : "compliance",
+                data: parsedData,
+              };
+              display = displayData;
               sendEvent("function_result", {
                 message: functionResponse,
-                display: {
-                  type:
-                    functionName === "getCurrentWeather"
-                      ? "weather"
-                      : functionName === "getCurrentTime"
-                        ? "time"
-                        : "compliance",
-                  data: parsedData,
-                },
+                display: displayData,
               });
             }
           } catch (error) {
@@ -196,7 +200,16 @@ router.post("/chat", async (req, res) => {
       }
     }
 
-    // End the stream
+    // After processing, save assistant's response
+    await ChatService.addMessage(chatId, {
+      role: "assistant",
+      content: responseMessage,
+      display: display,
+    });
+
+    // Periodically summarize old messages
+    await ChatService.summarizeOldMessages(chatId);
+
     sendEvent("done", {});
     res.end();
   } catch (error) {

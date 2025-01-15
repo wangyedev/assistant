@@ -27,119 +27,108 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingState, setLoadingState] = useState<LoadingState>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMessage = { role: "user" as const, content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    await processUserInput(input);
+  };
+
+  const processUserInput = async (userInput: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: userInput }]);
     setInput("");
     setLoadingState("thinking");
+    let currentAssistantMessage = "";
 
     try {
-      const response = await fetch("http://localhost:8080/api/assistant/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/assistant/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: userInput,
+            userId: "default-user", // TODO: Replace with actual user ID
+            chatId: "default-chat", // TODO: Replace with actual chat ID
+          }),
+        }
+      );
 
-      if (!response.ok) throw new Error("Failed to get response");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      if (!reader) throw new Error("No reader available");
 
-      // Create a new message that we'll update as we receive chunks
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: "",
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const decoder = new TextDecoder();
-      let buffer = "";
+        const chunk = new TextDecoder().decode(value);
+        const lines = chunk.split("\n");
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
             try {
-              const [eventLine, dataLine] = line.split("\n");
-              if (
-                !eventLine?.startsWith("event: ") ||
-                !dataLine?.startsWith("data: ")
-              ) {
-                continue;
+              const data = JSON.parse(line.slice(5));
+
+              if (data.error) {
+                throw new Error(data.error.message);
               }
 
-              const event = eventLine.slice(7); // Remove "event: "
-              const data = JSON.parse(dataLine.slice(5)); // Remove "data: "
-
-              switch (event) {
+              switch (data.event) {
                 case "thinking":
-                  setLoadingState("thinking");
+                  setMessages((prev) => [
+                    ...prev.slice(0, -1),
+                    {
+                      role: "assistant",
+                      content: "Thinking...",
+                      isLoading: true,
+                    },
+                  ]);
                   break;
-                case "function_call":
-                  setLoadingState("calling_function");
-                  break;
-                case "function_executing":
-                  setLoadingState("processing_response");
-                  break;
-                case "function_result":
-                  setMessages((prev) => {
-                    const lastMessage = prev[prev.length - 1];
-                    if (!lastMessage) return prev;
-                    return [
-                      ...prev.slice(0, -1),
-                      {
-                        ...lastMessage,
-                        content: data.message,
-                        display: data.display,
-                      },
-                    ];
-                  });
-                  break;
+
                 case "content":
-                  setMessages((prev) => {
-                    const lastMessage = prev[prev.length - 1];
-                    if (!lastMessage) return prev;
-                    return [
-                      ...prev.slice(0, -1),
-                      {
-                        ...lastMessage,
-                        content: (lastMessage.content || "") + data.content,
-                      },
-                    ];
-                  });
+                  currentAssistantMessage += data.content;
+                  setMessages((prev) => [
+                    ...prev.slice(0, -1),
+                    { role: "assistant", content: currentAssistantMessage },
+                  ]);
                   break;
+
+                case "function_result":
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      role: "assistant",
+                      content: data.message,
+                      display: data.display,
+                    },
+                  ]);
+                  break;
+
                 case "error":
                   throw new Error(data.message);
+
                 case "done":
-                  return; // Clean exit when done
+                  setLoadingState(null);
+                  break;
               }
-            } catch (parseError) {
-              console.error("Error parsing event:", parseError);
-              // Continue processing other events instead of failing
-              continue;
+            } catch (e) {
+              console.error("Error parsing SSE data:", e);
             }
           }
         }
-      } finally {
-        reader.releaseLock(); // Ensure we release the reader
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Chat error:", error);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Sorry, I encountered an error processing your request.",
+          content: "Sorry, I encountered an error. Please try again.",
+          error: true,
         },
       ]);
     } finally {
