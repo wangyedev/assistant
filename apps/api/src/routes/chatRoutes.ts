@@ -37,6 +37,34 @@ router.post(
   }
 );
 
+// Get all chats
+router.get("/", async (req, res) => {
+  try {
+    const chats = await Chat.find()
+      .select("metadata updatedAt messages")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const chatPreviews = chats.map((chat) => ({
+      _id: chat._id,
+      lastMessage: chat.messages[chat.messages.length - 1]?.content,
+      updatedAt: chat.updatedAt,
+      metadata: chat.metadata,
+    }));
+
+    res.json({
+      success: true,
+      chats: chatPreviews,
+    });
+  } catch (error) {
+    console.error("Error fetching chats:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch chats",
+    });
+  }
+});
+
 // Get chat by ID
 router.get("/:chatId", async (req, res) => {
   try {

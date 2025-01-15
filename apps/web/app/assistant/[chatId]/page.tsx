@@ -15,16 +15,16 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  let currentEvent = ""; // Track current event type
 
   useEffect(() => {
     const loadChat = async () => {
       try {
         const chatId = params.chatId as string;
-        const chat = await ChatService.getChat(chatId);
-        setMessages(chat.messages);
+        const { messages: chatMessages } = await ChatService.getChat(chatId);
+        setMessages(chatMessages);
       } catch (error) {
         if (error instanceof Error && error.message === "Chat not found") {
-          // Redirect to home if chat doesn't exist
           router.push("/");
         } else {
           setError("Failed to load chat. Please try again later.");
@@ -36,6 +36,217 @@ export default function ChatPage() {
 
     loadChat();
   }, [params.chatId, router]);
+
+  const handleSubmit = async (input: string) => {
+    try {
+      setMessages((prev) => [...prev, { role: "user", content: input }]);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/assistant/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: input,
+            userId: "default-user",
+            chatId: params.chatId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      let buffer = "";
+      let hasReceivedContent = false;
+      let errorMessages: string[] = [];
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            if (buffer) {
+              const lines = buffer.split("\n");
+              lines.forEach((line) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith("event: ")) {
+                  currentEvent = trimmedLine.slice(7);
+                } else if (trimmedLine.startsWith("data: ")) {
+                  const data = JSON.parse(trimmedLine.slice(6));
+                  handleSSEEvent(
+                    currentEvent,
+                    data,
+                    errorMessages,
+                    hasReceivedContent
+                  );
+                }
+              });
+            }
+
+            // If we've reached the end without receiving any content and have errors
+            if (!hasReceivedContent && errorMessages.length > 0) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: `Error: ${errorMessages[errorMessages.length - 1]}`,
+                  error: true,
+                },
+              ]);
+            }
+            break;
+          }
+
+          const chunk = new TextDecoder().decode(value, { stream: true });
+          buffer += chunk;
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith("event: ")) {
+              currentEvent = trimmedLine.slice(7);
+            } else if (trimmedLine.startsWith("data: ")) {
+              const data = JSON.parse(trimmedLine.slice(6));
+              handleSSEEvent(
+                currentEvent,
+                data,
+                errorMessages,
+                hasReceivedContent
+              );
+
+              // Mark as received content if we get a successful response
+              if (["function_result", "content"].includes(currentEvent)) {
+                hasReceivedContent = true;
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again.",
+          error: true,
+        },
+      ]);
+    }
+  };
+
+  const handleSSEEvent = (
+    event: string,
+    data: any,
+    errorMessages: string[],
+    hasReceivedContent: boolean
+  ) => {
+    switch (event) {
+      case "thinking":
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.content || "Thinking...",
+            isLoading: true,
+          },
+        ]);
+        break;
+
+      case "error":
+        // Store error message but don't display it yet
+        errorMessages.push(data.message);
+        break;
+
+      case "content":
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+
+          // If we have a loading message or no message, start fresh
+          if (!lastMessage || lastMessage.isLoading) {
+            newMessages[newMessages.length - 1] = {
+              role: "assistant",
+              content: data.content,
+            };
+          } else if (lastMessage.role === "assistant" && !lastMessage.display) {
+            // Accumulate content for existing assistant message
+            newMessages[newMessages.length - 1] = {
+              ...lastMessage,
+              content: lastMessage.content + data.content,
+            };
+          } else {
+            // Start a new message if last message has display data
+            newMessages.push({
+              role: "assistant",
+              content: data.content,
+            });
+          }
+          return newMessages;
+        });
+        break;
+
+      case "function_call":
+      case "function_executing":
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.isLoading) {
+            newMessages[newMessages.length - 1] = {
+              role: "assistant",
+              content: `Fetching ${data.name}...`,
+              isLoading: true,
+            };
+          }
+          return newMessages;
+        });
+        break;
+
+      case "function_result":
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.isLoading) {
+            newMessages[newMessages.length - 1] = {
+              role: "assistant",
+              content: data.message,
+              display: data.display,
+            };
+          } else {
+            newMessages.push({
+              role: "assistant",
+              content: data.message,
+              display: data.display,
+            });
+          }
+          return newMessages;
+        });
+        break;
+
+      case "done":
+        // Only clean up if we had successful content
+        if (hasReceivedContent) {
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.isLoading) {
+              newMessages.pop();
+            }
+            return newMessages;
+          });
+        }
+        break;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -59,100 +270,7 @@ export default function ChatPage() {
         <MessageList messages={messages} />
       </div>
       <div className="p-4 border-t">
-        <ChatInput
-          onSubmit={async (input: string) => {
-            try {
-              const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/assistant/chat`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    message: input,
-                    userId: "default-user", // TODO: Replace with actual user ID
-                    chatId: params.chatId,
-                  }),
-                }
-              );
-
-              if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-              }
-
-              const reader = response.body?.getReader();
-              if (!reader) throw new Error("No reader available");
-
-              let currentAssistantMessage = "";
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = new TextDecoder().decode(value);
-                const lines = chunk.split("\n");
-
-                for (const line of lines) {
-                  if (line.startsWith("data: ")) {
-                    try {
-                      const data = JSON.parse(line.slice(5));
-
-                      if (data.error) {
-                        throw new Error(data.error.message);
-                      }
-
-                      switch (data.event) {
-                        case "thinking":
-                          setMessages((prev) => [
-                            ...prev,
-                            {
-                              role: "assistant",
-                              content: "Thinking...",
-                              isLoading: true,
-                            },
-                          ]);
-                          break;
-
-                        case "content":
-                          currentAssistantMessage += data.content;
-                          setMessages((prev) => [
-                            ...prev.slice(0, -1),
-                            {
-                              role: "assistant",
-                              content: currentAssistantMessage,
-                            },
-                          ]);
-                          break;
-
-                        case "function_result":
-                          setMessages((prev) => [
-                            ...prev,
-                            {
-                              role: "assistant",
-                              content: data.message,
-                              display: data.display,
-                            },
-                          ]);
-                          break;
-                      }
-                    } catch (e) {
-                      console.error("Error parsing SSE data:", e);
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              console.error("Chat error:", error);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "assistant",
-                  content: "Sorry, I encountered an error. Please try again.",
-                  error: true,
-                },
-              ]);
-            }
-          }}
-        />
+        <ChatInput onSubmit={handleSubmit} />
       </div>
     </div>
   );
