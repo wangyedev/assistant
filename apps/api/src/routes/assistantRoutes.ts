@@ -69,6 +69,7 @@ router.post("/chat", async (req, res) => {
           }
         }
 
+        // Accumulate function name
         if (toolCall.function?.name) {
           if (!currentToolCall.function) {
             currentToolCall.function = {
@@ -78,6 +79,7 @@ router.post("/chat", async (req, res) => {
           }
         }
 
+        // Accumulate arguments
         if (toolCall.function?.arguments) {
           if (currentToolCall.function?.name) {
             currentToolCall.function = {
