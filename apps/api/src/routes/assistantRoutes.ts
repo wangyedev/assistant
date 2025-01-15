@@ -21,7 +21,7 @@ router.post("/chat", async (req, res) => {
   };
 
   try {
-    const { message } = req.body;
+    const { message }: { message: string } = req.body;
 
     // Set headers for SSE
     res.setHeader("Content-Type", "text/event-stream");
@@ -147,9 +147,17 @@ router.post("/chat", async (req, res) => {
                     role: "system",
                     content: `Parse the following response and return a JSON object.
                     For weather responses, include: location, temperature (number), unit (celsius/fahrenheit), description, feelsLike (number), humidity (number).
-                    For time responses, include: timezone, time, date.
+                    For time responses, include: city (string), timezone (string), time (string), date (string).
                     For compliance responses, include: results array with objects containing id, shortName, longName, briefDescription, regions[], industries[], status.
-                    Return only the JSON object, no other text.`,
+                    Return only the JSON object, no other text.
+                    
+                    Example time response:
+                    {
+                      "city": "New York",
+                      "timezone": "America/New_York",
+                      "time": "2:30 PM",
+                      "date": "Thursday, March 14, 2024"
+                    }`,
                   },
                   {
                     role: "user",

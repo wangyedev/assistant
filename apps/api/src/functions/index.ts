@@ -38,6 +38,10 @@ export const getCurrentTime: FunctionDefinition = {
   parameters: {
     type: "object",
     properties: {
+      city: {
+        type: "string",
+        description: "The city name",
+      },
       timezone: {
         type: "string",
         description: "The timezone (e.g., 'America/New_York', 'Europe/London')",
@@ -88,12 +92,19 @@ export const functions = {
     }
   },
 
-  getCurrentTime: async (args: { timezone: string }) => {
+  getCurrentTime: async (args: { city: string; timezone: string }) => {
     try {
       const time = new Date().toLocaleString("en-US", {
         timeZone: args.timezone,
+        hour: "numeric",
+        minute: "numeric",
       });
-      return `The current time in ${args.timezone} is ${time}`;
+      const date = new Date().toLocaleString("en-US", {
+        timeZone: args.timezone,
+        dateStyle: "full",
+      });
+
+      return `Current time in ${args.city} (${args.timezone}): ${time} on ${date}`;
     } catch (error) {
       return `Invalid timezone: ${args.timezone}`;
     }

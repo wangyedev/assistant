@@ -69,19 +69,21 @@ export function WeatherCard({
 }
 
 interface TimeCardProps {
+  city: string;
   timezone: string;
   time: string;
   date: string;
 }
 
-export function TimeCard({ timezone, time, date }: TimeCardProps) {
+export function TimeCard({ city, timezone, time, date }: TimeCardProps) {
   return (
     <Card className="p-4 flex items-start gap-4">
       <div className="p-2 bg-primary/10 rounded-full">
         <Icons.clock className="w-6 h-6 text-primary" />
       </div>
       <div>
-        <h3 className="font-semibold">{timezone}</h3>
+        <h3 className="font-semibold">{city}</h3>
+        <p className="text-sm text-muted-foreground">{timezone}</p>
         <div className="text-2xl font-bold">{time}</div>
         <p className="text-sm text-muted-foreground">{date}</p>
       </div>
