@@ -88,3 +88,76 @@ export function TimeCard({ timezone, time, date }: TimeCardProps) {
     </Card>
   );
 }
+
+interface ComplianceCardProps {
+  id: string;
+  shortName: string;
+  longName: string;
+  briefDescription: string;
+  regions: string[];
+  industries: string[];
+  status: string;
+}
+
+export function ComplianceCard({
+  shortName,
+  longName,
+  briefDescription,
+  regions,
+  industries,
+  status,
+}: ComplianceCardProps) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="bg-gradient-to-br from-blue-50/50 via-blue-50/25 to-transparent dark:from-blue-950/20 dark:via-blue-950/10 p-6">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-lg">{shortName}</h3>
+              <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                {status}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">{longName}</p>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-sm">{briefDescription}</p>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Regions</p>
+            <div className="flex flex-wrap gap-1">
+              {regions.map((region) => (
+                <span
+                  key={region}
+                  className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground"
+                >
+                  {region}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Industries
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {industries.map((industry) => (
+                <span
+                  key={industry}
+                  className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground"
+                >
+                  {industry}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

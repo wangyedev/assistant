@@ -4,14 +4,18 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Icons } from "@/components/ui/icons";
-import { WeatherCard, TimeCard } from "@/components/ui/response-cards";
+import {
+  WeatherCard,
+  TimeCard,
+  ComplianceCard,
+} from "@/components/ui/response-cards";
 
 interface MessageProps {
   role: "user" | "assistant" | "function";
   content: string;
   name?: string;
   display?: {
-    type: "weather" | "time";
+    type: "weather" | "time" | "compliance";
     data: any;
   };
 }
@@ -34,6 +38,13 @@ export function Message({ role, content, name, display }: MessageProps) {
           <>
             {display.type === "weather" && <WeatherCard {...display.data} />}
             {display.type === "time" && <TimeCard {...display.data} />}
+            {display.type === "compliance" && (
+              <div className="space-y-4">
+                {display.data.results.map((compliance: any) => (
+                  <ComplianceCard key={compliance.id} {...compliance} />
+                ))}
+              </div>
+            )}
           </>
         )}
 

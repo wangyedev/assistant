@@ -1,6 +1,6 @@
 import axios from "axios";
 import { config } from "../config";
-
+import { complianceFunctions, searchCompliance } from "./complianceSearch";
 export type FunctionDefinition = {
   name: string;
   description: string;
@@ -98,9 +98,17 @@ export const functions = {
       return `Invalid timezone: ${args.timezone}`;
     }
   },
+
+  searchCompliance: async (args: { query: string; searchType: string }) => {
+    return await complianceFunctions.searchCompliance({
+      query: args.query,
+      searchType: args.searchType,
+    });
+  },
 };
 
 export const availableFunctions: FunctionDefinition[] = [
   getCurrentWeather,
   getCurrentTime,
+  searchCompliance,
 ];

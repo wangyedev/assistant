@@ -37,7 +37,7 @@ export default function AssistantPage() {
     setLoadingState("thinking");
 
     try {
-      const response = await fetch("http://localhost:3001/api/assistant/chat", {
+      const response = await fetch("http://localhost:8080/api/assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),

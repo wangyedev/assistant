@@ -1,8 +1,8 @@
-import dotenv from 'dotenv';
-import path from 'path';
+import dotenv from "dotenv";
+import path from "path";
 
 // Load environment variables from .env file
-dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
 interface Config {
   port: number;
@@ -23,19 +23,19 @@ interface Config {
 }
 
 export const config: Config = {
-  port: parseInt(process.env.PORT || '3001', 10),
-  nodeEnv: process.env.NODE_ENV || 'development',
-  openAiApiKey: process.env.OPENAI_API_KEY || '',
+  port: parseInt(process.env.PORT || "8080", 10),
+  nodeEnv: process.env.NODE_ENV || "development",
+  openAiApiKey: process.env.OPENAI_API_KEY || "",
   db: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    name: process.env.DB_NAME || 'assistant_db',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST || "localhost",
+    port: parseInt(process.env.DB_PORT || "5432", 10),
+    name: process.env.DB_NAME || "assistant_db",
+    user: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASSWORD || "",
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-default-secret',
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    secret: process.env.JWT_SECRET || "your-default-secret",
+    expiresIn: process.env.JWT_EXPIRES_IN || "24h",
   },
-  openWeatherApiKey: process.env.OPENWEATHER_API_KEY || '',
-}; 
+  openWeatherApiKey: process.env.OPENWEATHER_API_KEY || "",
+};

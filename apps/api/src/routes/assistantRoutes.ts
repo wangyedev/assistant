@@ -40,17 +40,33 @@ router.post("/chat", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant that provides information with specialized UI components when appropriate.
-          For weather information, return a JSON response with type: "weather" and include location, temperature, unit, and description.
-          For time information, return a JSON response with type: "time" and include timezone, time, and date.
-          For other responses, provide clear markdown-formatted text.`,
+          content: `You are a helpful assistant specializing in compliance information and general queries.
+
+            For compliance queries:
+            - Use the searchCompliance function to find relevant standards
+            - Consider industry-specific requirements
+            - Match regional regulations
+            - Provide clear, structured responses
+
+            For weather and time queries:
+            - Use getCurrentWeather for weather information
+            - Use getCurrentTime for timezone information
+            - Return responses in the appropriate format
+
+            Format all responses in clear markdown with:
+            - Bullet points for key information
+            - Headers for different sections
+            - Brief summaries followed by details
+            - Relevant links when available`,
         },
         { role: "user", content: message },
       ],
-      tools: availableFunctions.map((fn) => ({
-        type: "function",
-        function: fn,
-      })),
+      tools: [
+        ...availableFunctions.map((fn) => ({
+          type: "function" as const,
+          function: fn,
+        })),
+      ],
       tool_choice: "auto",
       stream: true,
     });
@@ -129,9 +145,10 @@ router.post("/chat", async (req, res) => {
                 messages: [
                   {
                     role: "system",
-                    content: `Parse the following weather/time information and return a JSON object.
+                    content: `Parse the following response and return a JSON object.
                     For weather responses, include: location, temperature (number), unit (celsius/fahrenheit), description, feelsLike (number), humidity (number).
                     For time responses, include: timezone, time, date.
+                    For compliance responses, include: results array with objects containing id, shortName, longName, briefDescription, regions[], industries[], status.
                     Return only the JSON object, no other text.`,
                   },
                   {
@@ -149,7 +166,11 @@ router.post("/chat", async (req, res) => {
                 message: functionResponse,
                 display: {
                   type:
-                    functionName === "getCurrentWeather" ? "weather" : "time",
+                    functionName === "getCurrentWeather"
+                      ? "weather"
+                      : functionName === "getCurrentTime"
+                        ? "time"
+                        : "compliance",
                   data: parsedData,
                 },
               });
