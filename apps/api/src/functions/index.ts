@@ -40,14 +40,14 @@ export const getCurrentTime: FunctionDefinition = {
     properties: {
       city: {
         type: "string",
-        description: "The city name",
+        description: "The city name (e.g., 'New York', 'London')",
       },
       timezone: {
         type: "string",
         description: "The timezone (e.g., 'America/New_York', 'Europe/London')",
       },
     },
-    required: ["timezone"],
+    required: ["city", "timezone"],
   },
 };
 
