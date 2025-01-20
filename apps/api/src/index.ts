@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import assistantRoutes from "./routes/assistantRoutes";
 import chatRoutes from "./routes/chatRoutes";
+import complianceRoutes from "./routes/complianceRoutes";
 import { config } from "./config";
 import { connectDB } from "./config/database";
 
@@ -11,7 +12,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: process.env.NEXT_PUBLIC_URL || "http://localhost:3000",
+    origin: "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -21,6 +22,7 @@ app.use(
 // Routes
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/compliance", complianceRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

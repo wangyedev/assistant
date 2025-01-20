@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -5,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Icons } from "@/components/ui/icons";
 import { WeatherCard, TimeCard, ComplianceCard } from "@/components/ui/cards";
+import { RequestComplianceForm } from "@/components/ui/cards/request-compliance-form";
+import { ChatService } from "@/services/chatService";
 
 interface MessageProps {
   role: "user" | "assistant" | "function";
@@ -13,10 +16,91 @@ interface MessageProps {
   display?: {
     type: "weather" | "time" | "compliance";
     data: any;
+    formStatus?: "submitted" | "pending";
   };
+  chatId: string;
 }
 
-export function Message({ role, content, name, display }: MessageProps) {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+export function Message({
+  role,
+  content,
+  name,
+  display,
+  chatId,
+}: MessageProps) {
+  const [submittedCompliance, setSubmittedCompliance] = useState<any>(null);
+
+  // Initialize form status from props
+  useEffect(() => {
+    if (display?.type === "compliance" && display.formStatus === "submitted") {
+      setSubmittedCompliance(display.data.results[0]);
+    }
+  }, [display]);
+
+  const handleComplianceRequest = async (data: {
+    shortName: string;
+    longName: string;
+    briefDescription: string;
+    region: string;
+    industry: string;
+  }) => {
+    try {
+      // Submit compliance request
+      const response = await fetch(`${API_URL}/api/compliance/request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...data,
+          status: "pending",
+          regions: [data.region],
+          industries: [data.industry],
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to submit request");
+      }
+
+      const complianceData = {
+        id: Date.now().toString(),
+        ...data,
+        status: "pending",
+        regions: [data.region],
+        industries: [data.industry],
+      };
+
+      // Save chat history with form status
+      await ChatService.addMessage(chatId, {
+        role: "function",
+        content: `Compliance request submitted for ${data.shortName} (${data.longName})`,
+        name: "submitComplianceRequest",
+        display: {
+          type: "compliance",
+          data: {
+            results: [complianceData],
+          },
+        },
+        formStatus: "submitted",
+      });
+
+      setSubmittedCompliance(complianceData);
+    } catch (error) {
+      console.error("Error submitting compliance request:", error);
+      throw error;
+    }
+  };
+
+  const shouldShowForm =
+    display?.type === "compliance" &&
+    !submittedCompliance &&
+    !display.data.results?.length &&
+    display.formStatus !== "submitted";
+
   return (
     <div
       className={cn("flex gap-3", {
@@ -36,9 +120,13 @@ export function Message({ role, content, name, display }: MessageProps) {
             {display.type === "time" && <TimeCard {...display.data} />}
             {display.type === "compliance" && (
               <div className="space-y-4">
-                {display.data.results.map((compliance: any) => (
-                  <ComplianceCard key={compliance.id} {...compliance} />
-                ))}
+                {shouldShowForm ? (
+                  <RequestComplianceForm onSubmit={handleComplianceRequest} />
+                ) : (
+                  <ComplianceCard
+                    {...(submittedCompliance || display.data.results[0])}
+                  />
+                )}
               </div>
             )}
           </>

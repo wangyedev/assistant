@@ -282,7 +282,7 @@ export default function ChatPage() {
             </Alert>
           )}
           <div className="py-4">
-            <MessageList messages={messages} />
+            <MessageList messages={messages} chatId={params.chatId as string} />
           </div>
         </div>
       </div>

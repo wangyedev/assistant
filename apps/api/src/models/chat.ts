@@ -7,6 +7,7 @@ export interface IMessage {
   display?: {
     type: "weather" | "time" | "compliance";
     data: any;
+    formStatus: "submitted" | "pending";
   };
   error?: boolean;
   isLoading?: boolean;
@@ -53,9 +54,17 @@ const MessageSchema = new Schema(
         enum: ["weather", "time", "compliance"],
       },
       data: Schema.Types.Mixed,
+      formStatus: {
+        type: String,
+        enum: ["submitted", "pending"],
+      },
     },
     error: Boolean,
     isLoading: Boolean,
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { _id: false }
 );
@@ -107,6 +116,14 @@ const ChatSchema = new Schema(
       summary: String,
       tags: [String],
     },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,
@@ -150,6 +167,7 @@ ChatSchema.pre("save", function (next) {
       }
     }
   }
+  this.updatedAt = new Date();
   next();
 });
 

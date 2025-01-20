@@ -90,10 +90,7 @@ router.get("/", async (req, res) => {
 // Get chat by ID
 router.get("/:chatId", async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
-    if (!chat) {
-      return res.status(404).json({ success: false, error: "Chat not found" });
-    }
+    const chat = await ChatService.getChat(req.params.chatId);
     res.json({ success: true, chat });
   } catch (error) {
     console.error("Error fetching chat:", error);

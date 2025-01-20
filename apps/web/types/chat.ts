@@ -8,6 +8,7 @@ export interface IMessage {
   };
   isLoading?: boolean;
   error?: boolean;
+  formStatus?: "submitted" | "pending";
 }
 
 export interface ChatPreview {

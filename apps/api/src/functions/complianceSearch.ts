@@ -5,6 +5,7 @@ import {
   getComplianceByIndustry,
   getComplianceByRegion,
 } from "../data/compliance";
+import { ComplianceModel } from "../models/compliance";
 
 export type FunctionDefinition = {
   name: string;
@@ -85,3 +86,16 @@ export const complianceFunctions = {
     });
   },
 };
+
+export async function searchComplianceInDB(query: string) {
+  const results = await ComplianceModel.find({
+    $or: [
+      { shortName: { $regex: query, $options: "i" } },
+      { longName: { $regex: query, $options: "i" } },
+      { briefDescription: { $regex: query, $options: "i" } },
+      { regions: { $regex: query, $options: "i" } },
+      { industries: { $regex: query, $options: "i" } },
+    ],
+  });
+  return results;
+}

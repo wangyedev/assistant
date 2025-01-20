@@ -1,3 +1,5 @@
+import { Check, X } from "lucide-react";
+
 export const Icons = {
   user: (props: React.SVGProps<SVGSVGElement>) => (
     <svg
@@ -104,4 +106,6 @@ export const Icons = {
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   ),
-};
+  check: Check,
+  x: X,
+} as const;

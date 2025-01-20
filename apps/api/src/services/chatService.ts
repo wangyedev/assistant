@@ -14,6 +14,7 @@ export class ChatService {
   }
 
   static async addMessage(chatId: string, message: IMessage): Promise<void> {
+    console.log("Adding message to chat:", chatId, message);
     const chat = await Chat.findById(chatId);
     if (!chat) {
       throw new Error("Chat not found");
@@ -43,7 +44,38 @@ export class ChatService {
     if (!chats.length) return [];
 
     const messages = chats[0].messages;
-    return messages.slice(-this.MAX_CONTEXT_MESSAGES);
+    return this.filterMessages(messages.slice(-this.MAX_CONTEXT_MESSAGES));
+  }
+
+  private static filterMessages(messages: IMessage[]): IMessage[] {
+    return messages.filter((message, index) => {
+      // Keep the message if it's not a compliance type
+      if (!message.display || message.display.type !== "compliance") {
+        return true;
+      }
+
+      // Check if the next message is a compliance submission
+      const nextMessage = messages[index + 1];
+      console.log("Next message:", nextMessage);
+      return !(
+        nextMessage?.display?.type === "compliance" &&
+        nextMessage?.name === "submitComplianceRequest"
+      );
+    });
+  }
+
+  static async getChat(
+    chatId: string
+  ): Promise<{ messages: IMessage[]; userId: string }> {
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+
+    return {
+      userId: chat.userId,
+      messages: this.filterMessages(chat.messages),
+    };
   }
 
   static async summarizeOldMessages(chatId: string): Promise<void> {
