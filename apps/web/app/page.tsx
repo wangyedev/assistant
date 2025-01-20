@@ -84,6 +84,11 @@ export default function HomePage() {
         <ChatList
           chats={chats}
           onSelect={(chatId) => router.push(`/assistant/${chatId}`)}
+          onDelete={(chatId) => {
+            setChats((prevChats) =>
+              prevChats.filter((chat) => chat._id !== chatId)
+            );
+          }}
         />
       )}
     </div>

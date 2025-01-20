@@ -115,4 +115,19 @@ router.post("/:chatId/messages", async (req, res) => {
   }
 });
 
+// Delete chat
+router.delete("/:chatId", async (req, res) => {
+  try {
+    console.log("Deleting chat:", req.params.chatId);
+    const chat = await Chat.findByIdAndDelete(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ success: false, error: "Chat not found" });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    res.status(500).json({ success: false, error: "Failed to delete chat" });
+  }
+});
+
 export default router;

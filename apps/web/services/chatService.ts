@@ -87,4 +87,29 @@ export class ChatService {
       throw error;
     }
   }
+
+  static async deleteChat(chatId: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.API_URL}/api/chat/${chatId}`, {
+        method: "DELETE",
+      }).catch((error) => {
+        if (!window.navigator.onLine) {
+          throw new Error(
+            "You are offline. Please check your internet connection."
+          );
+        }
+        throw error;
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Chat not found");
+        }
+        throw new Error(`Failed to delete chat: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      throw error;
+    }
+  }
 }
