@@ -8,6 +8,8 @@ export interface IMessage {
     type: "weather" | "time" | "compliance";
     data: any;
   };
+  error?: boolean;
+  isLoading?: boolean;
 }
 
 export interface IChat extends Document {
@@ -52,6 +54,8 @@ const MessageSchema = new Schema(
       },
       data: Schema.Types.Mixed,
     },
+    error: Boolean,
+    isLoading: Boolean,
   },
   { _id: false }
 );

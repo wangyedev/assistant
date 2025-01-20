@@ -21,9 +21,9 @@ router.post("/chat", async (req, res) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  try {
-    const { message, userId, chatId } = req.body;
+  const { message, userId, chatId } = req.body;
 
+  try {
     // Set headers for SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -75,11 +75,13 @@ router.post("/chat", async (req, res) => {
       if (chunk.choices[0]?.delta?.content) {
         const content = chunk.choices[0].delta.content;
         responseMessage += content;
+        console.log("Received content chunk:", content);
         sendEvent("content", { content });
       }
 
       const toolCall = chunk.choices[0]?.delta?.tool_calls?.[0];
       if (toolCall && !hasExecutedFunction) {
+        console.log("Received tool call:", toolCall);
         // Accumulate tool call parts
         if (toolCall.id) {
           if (!currentToolCall.id) {
@@ -116,8 +118,25 @@ router.post("/chat", async (req, res) => {
           currentToolCall.function?.arguments
         ) {
           try {
-            // Try to parse the arguments to verify they're complete
-            const functionArgs = JSON.parse(currentToolCall.function.arguments);
+            // Wait for complete JSON before parsing
+            const args = currentToolCall.function.arguments;
+            if (!args.endsWith("}")) {
+              continue; // Wait for more chunks if JSON is incomplete
+            }
+
+            // Try to parse the arguments
+            let functionArgs;
+            try {
+              functionArgs = JSON.parse(currentToolCall.function.arguments);
+            } catch (parseError) {
+              console.error("JSON parse error:", parseError);
+              console.log(
+                "Incomplete JSON:",
+                currentToolCall.function.arguments
+              );
+              continue; // Wait for more chunks if JSON is invalid
+            }
+
             const functionName = currentToolCall.function.name;
 
             // Only execute if we haven't already
@@ -140,6 +159,9 @@ router.post("/chat", async (req, res) => {
                 await functions[functionName as keyof typeof functions](
                   functionArgs
                 );
+
+              // Add function response to the overall response message
+              responseMessage = functionResponse;
 
               // Parse the response
               const parseResponse = await openai.chat.completions.create({
@@ -201,19 +223,46 @@ router.post("/chat", async (req, res) => {
     }
 
     // After processing, save assistant's response
-    await ChatService.addMessage(chatId, {
-      role: "assistant",
-      content: responseMessage,
-      display: display,
-    });
+    try {
+      if (responseMessage) {
+        console.log("Saving assistant response:", {
+          role: "assistant",
+          contentLength: responseMessage.length,
+          hasDisplay: !!display,
+        });
 
-    // Periodically summarize old messages
-    await ChatService.summarizeOldMessages(chatId);
+        await ChatService.addMessage(chatId, {
+          role: "assistant",
+          content: responseMessage,
+          display: display,
+        });
+
+        // Periodically summarize old messages
+        await ChatService.summarizeOldMessages(chatId);
+      } else {
+        console.warn("No response message to save");
+      }
+    } catch (error) {
+      console.error("Failed to save assistant response:", error);
+      sendEvent("error", { message: "Failed to save response" });
+    }
 
     sendEvent("done", {});
     res.end();
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error in chat processing:", error);
+    if (chatId) {
+      try {
+        // Try to save error message
+        await ChatService.addMessage(chatId, {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again.",
+          error: true,
+        });
+      } catch (saveError) {
+        console.error("Failed to save error message:", saveError);
+      }
+    }
     sendEvent("error", { message: "Failed to process request" });
     res.end();
   }
