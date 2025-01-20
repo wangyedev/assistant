@@ -1,13 +1,4 @@
-import { IMessage } from "@/types/chat";
-
-interface ChatPreview {
-  _id: string;
-  lastMessage?: string;
-  updatedAt: string;
-  metadata?: {
-    title?: string;
-  };
-}
+import { IMessage, ChatPreview } from "@/types/chat";
 
 export class ChatService {
   private static readonly API_URL =

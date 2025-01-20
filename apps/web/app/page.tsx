@@ -7,15 +7,7 @@ import { ChatService } from "@/services/chatService";
 import { ChatList } from "@/components/chat-list";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Alert } from "@/components/ui/alert";
-
-interface ChatPreview {
-  _id: string;
-  lastMessage?: string;
-  updatedAt: string;
-  metadata?: {
-    title?: string;
-  };
-}
+import { ChatPreview } from "@/types/chat";
 
 export default function HomePage() {
   const router = useRouter();

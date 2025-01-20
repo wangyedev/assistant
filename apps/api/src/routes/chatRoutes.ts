@@ -45,12 +45,24 @@ router.get("/", async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    const chatPreviews = chats.map((chat) => ({
-      _id: chat._id,
-      lastMessage: chat.messages[chat.messages.length - 1]?.content,
-      updatedAt: chat.updatedAt,
-      metadata: chat.metadata,
-    }));
+    const chatPreviews = chats.map((chat) => {
+      const lastMessage = chat.messages[chat.messages.length - 1];
+      return {
+        _id: chat._id,
+        preview: {
+          title: chat.metadata?.title || "Untitled Chat",
+          lastMessage: {
+            content: lastMessage?.content || "",
+            role: lastMessage?.role || "assistant",
+            timestamp: chat.updatedAt,
+            displayType: lastMessage?.display?.type,
+          },
+          messageCount: chat.messages.length,
+          category: chat.metadata?.tags?.[0],
+        },
+        updatedAt: chat.updatedAt,
+      };
+    });
 
     res.json({
       success: true,

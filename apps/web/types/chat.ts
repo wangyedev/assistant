@@ -10,6 +10,22 @@ export interface IMessage {
   error?: boolean;
 }
 
+export interface ChatPreview {
+  _id: string;
+  preview: {
+    title: string;
+    lastMessage: {
+      content: string;
+      role: "user" | "assistant" | "function";
+      timestamp: Date;
+      displayType?: "weather" | "time" | "compliance";
+    };
+    messageCount: number;
+    category?: string;
+  };
+  updatedAt: string;
+}
+
 export interface IChat {
   _id: string;
   userId: string;

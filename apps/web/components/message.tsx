@@ -48,16 +48,22 @@ export function Message({ role, content, name, display }: MessageProps) {
           </>
         )}
 
-        <Card className={cn("px-4 py-3")}>
-          {name && (
-            <div className="text-xs text-muted-foreground mb-2">
-              Function: {name}
-            </div>
-          )}
-          <div className="prose prose-sm dark:prose-invert">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-          </div>
-        </Card>
+        {(name || content) && (
+          <Card className={cn("px-4 py-3")}>
+            {name && (
+              <div className="text-xs text-muted-foreground mb-2">
+                Function: {name}
+              </div>
+            )}
+            {content && (
+              <div className="prose prose-sm dark:prose-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {content}
+                </ReactMarkdown>
+              </div>
+            )}
+          </Card>
+        )}
       </div>
 
       {role === "user" && (
