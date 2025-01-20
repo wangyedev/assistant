@@ -61,4 +61,30 @@ export class ChatService {
       throw error;
     }
   }
+
+  static async addMessage(
+    chatId: string,
+    message: IMessage
+  ): Promise<{ messages: IMessage[]; userId: string }> {
+    try {
+      const response = await fetch(
+        `${this.API_URL}/api/chat/${chatId}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to add message: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.chat;
+    } catch (error) {
+      console.error("Error adding message:", error);
+      throw error;
+    }
+  }
 }

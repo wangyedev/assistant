@@ -2,6 +2,8 @@ import express from "express";
 import { z } from "zod";
 import { Chat } from "../models/chat";
 import { validateRequest } from "../middleware/validateRequest";
+import { generateTitle } from "../functions/generateTitle";
+import { ChatService } from "../services/chatService";
 
 const router = express.Router();
 
@@ -23,10 +25,18 @@ router.post(
   async (req, res) => {
     try {
       const { userId, metadata } = req.body;
+      const welcomeMessage = {
+        role: "assistant",
+        content: "Hello! How can I help you today?",
+      };
+
       const chat = new Chat({
         userId,
-        messages: [],
-        metadata: metadata || {},
+        messages: [welcomeMessage],
+        metadata: {
+          ...metadata,
+          title: "New Chat", // Will be updated after first user message
+        },
       });
       await chat.save();
       res.status(201).json({ success: true, chatId: chat._id });
@@ -88,6 +98,20 @@ router.get("/:chatId", async (req, res) => {
   } catch (error) {
     console.error("Error fetching chat:", error);
     res.status(500).json({ success: false, error: "Failed to fetch chat" });
+  }
+});
+
+// Add message to chat
+router.post("/:chatId/messages", async (req, res) => {
+  try {
+    const message = req.body.message;
+    await ChatService.addMessage(req.params.chatId, message);
+
+    const chat = await Chat.findById(req.params.chatId);
+    res.json({ success: true, chat });
+  } catch (error) {
+    console.error("Error adding message:", error);
+    res.status(500).json({ success: false, error: "Failed to add message" });
   }
 });
 

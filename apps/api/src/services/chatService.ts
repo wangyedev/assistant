@@ -1,4 +1,5 @@
 import { Chat, IMessage } from "../models/chat";
+import { generateTitle } from "../functions/generateTitle";
 
 export class ChatService {
   private static readonly MAX_CONTEXT_MESSAGES = 10;
@@ -13,9 +14,27 @@ export class ChatService {
   }
 
   static async addMessage(chatId: string, message: IMessage): Promise<void> {
-    await Chat.findByIdAndUpdate(chatId, {
-      $push: { messages: message },
-    });
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+
+    chat.messages.push(message);
+
+    // Generate title only if it's the first user message and no title exists
+    if (
+      message.role === "user" &&
+      chat.messages.length === 2 &&
+      (!chat.metadata?.title || chat.metadata.title === "New Chat")
+    ) {
+      const title = await generateTitle(chat.messages);
+      chat.metadata = {
+        ...chat.metadata,
+        title,
+      };
+    }
+
+    await chat.save();
   }
 
   static async getRecentContext(userId: string): Promise<IMessage[]> {
