@@ -4,11 +4,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Icons } from "@/components/ui/icons";
-import {
-  WeatherCard,
-  TimeCard,
-  ComplianceCard,
-} from "@/components/ui/response-cards";
+import { WeatherCard, TimeCard, ComplianceCard } from "@/components/ui/cards";
 
 interface MessageProps {
   role: "user" | "assistant" | "function";
